@@ -1,0 +1,29 @@
+Barback
+Copyright 2026 The Barback Authors
+
+Licensed under the Apache License, Version 2.0.
+
+This product uses public data published by government bodies. Each source is
+attributed below and in docs/DATA-SOURCES.md. No data from these sources is
+redistributed in this repository except where explicitly noted as cached
+fixtures for reproducible tests.
+
+  Texas Alcoholic Beverage Commission — License Information
+  https://data.texas.gov/d/7hf9-qc9f
+  Public record, published via the Texas Open Data Portal.
+
+  Texas Comptroller of Public Accounts — Mixed Beverage Gross Receipts
+  https://data.texas.gov/d/naix-2893
+  Public record, published via the Texas Open Data Portal.
+
+  OpenStreetMap contributors
+  https://www.openstreetmap.org/copyright
+  Data licensed under the Open Database License (ODbL) v1.0.
+
+Licence and permit type definitions are taken from the Texas Alcoholic Beverage
+Commission's published list of licence and permit types:
+https://www.tabc.texas.gov/services/tabc-licenses-permits/tabc-license-permit-types/
+
+No ACORD form, carrier application, or carrier appetite document is reproduced
+or redistributed here. Underwriting fields are modelled generically as the union
+of what carriers writing this class ask, and source documents are cited by URL.

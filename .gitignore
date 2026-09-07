@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+*.tsbuildinfo
+data/runs/
+data/cache/**/*.json
+!data/cache/.gitkeep
+!data/cache/fixtures/**
