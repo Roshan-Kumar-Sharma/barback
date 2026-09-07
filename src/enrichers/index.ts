@@ -5,13 +5,18 @@ import { TabcLicenseEnricher } from './tabc/license.js';
 import { TabcReceiptsEnricher } from './tabc/receipts.js';
 
 import { LlmClient } from '../llm/client.js';
+import { CaAbcEnricher } from './ca_abc/license.js';
+import { AustinHealthEnricher } from './health_austin/index.js';
 import { OsmEnricher } from './osm/index.js';
 import { WebEnricher } from './web/index.js';
+import { CA_DERIVATIONS } from './ca_abc/derivations.js';
 import { TX_DERIVATIONS } from './tabc/derivations.js';
 
 export { TabcLicenseEnricher } from './tabc/license.js';
 export { TabcReceiptsEnricher } from './tabc/receipts.js';
 export { OsmEnricher } from './osm/index.js';
+export { CaAbcEnricher } from './ca_abc/license.js';
+export { AustinHealthEnricher } from './health_austin/index.js';
 export { WebEnricher } from './web/index.js';
 export * from './tabc/codes.js';
 
@@ -36,10 +41,15 @@ export function enrichersFor(state: StateCode, opts: EnricherOptions = {}): Enri
         new TabcLicenseEnricher(opts.socrataAppToken),
         new TabcReceiptsEnricher(opts.socrataAppToken),
         new OsmEnricher(),
+        new AustinHealthEnricher(),
         ...(opts.llm ? [new WebEnricher(opts.llm)] : []),
       ];
     case 'CA':
-      return [];
+      return [
+        new CaAbcEnricher(),
+        new OsmEnricher(),
+        ...(opts.llm ? [new WebEnricher(opts.llm)] : []),
+      ];
     default: {
       const never: never = state;
       throw new Error(`Unsupported state: ${String(never)}`);
@@ -56,7 +66,7 @@ export function derivationsFor(state: StateCode): readonly Derivation[] {
     case 'TX':
       return [...TX_DERIVATIONS, ...CORE_DERIVATIONS];
     case 'CA':
-      return CORE_DERIVATIONS;
+      return [...CA_DERIVATIONS, ...CORE_DERIVATIONS];
     default: {
       const never: never = state;
       throw new Error(`Unsupported state: ${String(never)}`);

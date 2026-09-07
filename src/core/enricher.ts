@@ -42,8 +42,30 @@ export type Fetched = {
   url: string;
 };
 
+export type FetchedFile = {
+  /** Absolute path to the cached file on disk. */
+  path: string;
+  ref: string;
+  retrieved_at: string;
+  from_cache: boolean;
+  url: string;
+  bytes: number;
+};
+
 export interface Fetcher {
   get(req: FetchRequest): Promise<Fetched>;
+
+  /**
+   * Fetch a bulk file to disk rather than into memory.
+   *
+   * Some public sources publish a daily archive rather than an API —
+   * California ABC ships a 7MB zip containing a 27MB CSV of every licence in
+   * the state. Forcing that through the JSON cache would be silly, but letting
+   * an enricher call `fetch` directly would put I/O outside the one place that
+   * enforces caching, rate limiting and the identifying User-Agent. So the port
+   * grows a second method instead of growing an exception.
+   */
+  getFile(req: FetchRequest & { extension?: string }): Promise<FetchedFile>;
 }
 
 export type Logger = {

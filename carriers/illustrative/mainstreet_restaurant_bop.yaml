@@ -1,0 +1,57 @@
+# ILLUSTRATIVE — NOT A REAL CARRIER.
+#
+# Models the food-primary, admitted-style appetite that most restaurants land in
+# and most bars fall out of. Included so the shortlist demonstrates a genuine
+# hard decline rather than only referrals.
+carrier: mainstreet_mutual
+program: restaurant_bop
+label: Mainstreet Mutual — Restaurant BOP (ILLUSTRATIVE)
+states: [TX, CA]
+classes: [restaurant]
+
+hard_declines:
+  - field: operations.venue_class
+    in: [bar, tavern, nightclub, lounge]
+    because: Alcohol-primary operations are outside a food-primary BOP appetite.
+  - field: liquor_profile.late_hours_permit
+    equals: true
+    because: A late-hours permit puts the risk outside the standard restaurant programme.
+  - field: entertainment.dance_club_or_hall
+    equals: true
+    because: Dance floors are excluded from this programme.
+  - field: revenue.alcohol_pct
+    gt: 0.3
+    because: Alcohol above 30% of sales exceeds the appetite for a food-primary BOP.
+
+review_required:
+  - field: fire_protection.suppression_type
+    equals: dry
+    because: A dry suppression system with cooking equipment refers to an underwriter.
+  - field: property.year_built
+    lt: 1978
+    because: Pre-1978 construction refers for wiring and plumbing.
+
+credits:
+  - field: liquor_profile.food_beverage_certificate
+    equals: true
+    because: A food and beverage certificate confirms the food-primary operation.
+  - field: property.sprinklered_100pct
+    equals: true
+    because: A fully sprinklered building earns a property credit.
+
+requires_for_submission:
+  - field: loss_history.losses
+    because: Five years of loss runs.
+  - field: property.square_footage
+    because: Square footage is the property rating basis.
+  - field: revenue.total_sales
+    because: Annual sales is the liability rating basis.
+
+limits:
+  general_liability: ["1M/2M"]
+  property: Up to $2M TIV
+
+source: https://github.com/barback/barback/blob/main/carriers/illustrative/mainstreet_restaurant_bop.yaml
+as_of: '2026-09-07'
+basis: ILLUSTRATIVE — demonstrates the rule format. Not a real carrier appetite.
+illustrative: true

@@ -95,3 +95,11 @@ export type ReceiptsMonth = {
   cover_charge: Usd;
   total: Usd;
 };
+
+/** A published health inspection. Scores are jurisdiction-specific and not comparable across cities. */
+export type HealthInspection = {
+  date: string;
+  score: number;
+  /** e.g. "Routine Inspection". */
+  kind: string;
+};

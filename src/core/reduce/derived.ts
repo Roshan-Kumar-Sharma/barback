@@ -16,10 +16,14 @@
  * turns a section of the intake call into a single question.
  */
 import { path, type FieldCandidate, type FieldPath } from '../field.js';
+import { isAtOrAfter } from '../time.js';
 import { getField, type RiskProfile } from '../schema/index.js';
 import type { VenueClass } from '../schema/types.js';
 
 export type Ctx = { now: Date };
+
+/** The hour from which trading counts as late-night for underwriting purposes. */
+const LATE_NIGHT_FROM = '02:00';
 
 export type Derivation = {
   path: FieldPath;
@@ -117,7 +121,7 @@ const lateNight: Derivation = {
     if (closing === null && lh === null) return null;
 
     const inputs = [path('operations.latest_closing_time'), path('liquor_profile.late_hours_permit')];
-    const closesLate = closing !== null && isAtOrAfter2am(closing);
+    const closesLate = closing !== null && isAtOrAfter(closing, LATE_NIGHT_FROM);
 
     if (closesLate) {
       return {
@@ -159,15 +163,6 @@ const lateNight: Derivation = {
     return null;
   },
 };
-
-/** Hours after midnight sort before hours before it, so compare on a 26-hour clock. */
-function isAtOrAfter2am(hhmm: string): boolean {
-  const [h, m] = hhmm.split(':').map(Number);
-  if (h === undefined || m === undefined || Number.isNaN(h)) return false;
-  // 00:00–05:59 are the small hours of the following day.
-  const minutes = h < 6 ? (h + 24) * 60 + m : h * 60 + m;
-  return minutes >= 26 * 60;
-}
 
 /** NAICS follows from the operating class. 722511 full-service, 722410 drinking places. */
 const naics: Derivation = {

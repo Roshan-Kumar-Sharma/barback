@@ -1,0 +1,74 @@
+# ILLUSTRATIVE — NOT A REAL CARRIER.
+#
+# This file exists to exercise and document the rule format. Its rules reflect
+# patterns that are widely discussed in public hospitality market commentary
+# (late-night trading, alcohol concentration, assault and battery history,
+# hookah, security controls), but they are NOT any carrier's actual appetite and
+# must never be used to place business.
+#
+# Illustrative files are excluded from `barback markets` unless you pass
+# --include-illustrative, and are labelled in every output that shows them.
+carrier: example_specialty
+program: bar_restaurant_es
+label: Example Specialty E&S (ILLUSTRATIVE)
+states: [TX, CA]
+classes: [restaurant, bar, tavern, lounge, nightclub]
+
+hard_declines:
+  - field: entertainment.adult_entertainment
+    equals: true
+    because: Adult entertainment is outside this program's appetite.
+  - field: revenue.alcohol_pct
+    gt: 0.85
+    because: Alcohol above 85% of sales exceeds the program's concentration limit.
+  - field: entertainment.mosh_pits
+    equals: true
+    because: Mosh pits are excluded.
+
+review_required:
+  - field: operations.latest_closing_time
+    at_or_after: '02:00'
+    because: Trading at or past 02:00 refers to an underwriter.
+  - field: entertainment.hookah_or_oxygen_inhalation
+    equals: true
+    because: Hookah or oxygen inhalation on premises requires referral.
+  - field: entertainment.dj_with_dancing
+    equals: true
+    because: A DJ with dancing refers for the crowd-management exposure.
+  - field: property.elevated_deck_or_rooftop
+    equals: true
+    because: A rooftop or deck elevated 8ft or more refers for the fall exposure.
+  - field: operations.years_under_current_owner
+    lt: 3
+    because: Under three years with the current owner refers as a new venture.
+
+credits:
+  - field: security_controls.id_scanner_all_patrons
+    equals: true
+    because: An ID scanner used on all patrons earns a credit.
+  - field: security_controls.voluntary_server_training
+    equals: true
+    because: Voluntary (non-mandated) alcohol server training earns a credit.
+  - field: security_controls.bouncers_employed
+    equals: true
+    because: Employed door staff earns a credit on late-night risks.
+
+requires_for_submission:
+  - field: loss_history.losses
+    because: Five years of currently valued loss runs.
+  - field: revenue.alcohol_pct
+    because: The revenue split is needed to rate liquor liability.
+  - field: coverage_requested.liquor_liability_limits
+    because: Requested liquor limits must be stated.
+  - field: fire_protection.nfpa96_compliant
+    because: Hood and duct compliance is required where there is cooking.
+
+limits:
+  general_liability: ["500K/1M", "1M/1M", "1M/2M"]
+  liquor_liability: ["500K/1M", "1M/1M", "1M/2M"]
+  assault_battery: sublimit_available
+
+source: https://github.com/barback/barback/blob/main/carriers/illustrative/example_specialty_es.yaml
+as_of: '2026-09-07'
+basis: ILLUSTRATIVE — demonstrates the rule format. Not a real carrier appetite.
+illustrative: true

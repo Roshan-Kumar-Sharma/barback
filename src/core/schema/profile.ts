@@ -10,7 +10,7 @@ import type { PostalAddress } from '../venue.js';
 import type {
   Activity, BurglarAlarm, BusinessForm, ConstructionClass, CookingEquipment,
   LimitPair, LiquorViolation, LossRecord, PlumbingType, ProtectionClass,
-  ReceiptsMonth, RoofType, SuppressionType, TimeOfDay, Usd, VenueClass,
+  HealthInspection, ReceiptsMonth, RoofType, SuppressionType, TimeOfDay, Usd, VenueClass,
 } from './types.js';
 
 export type Identity = {
@@ -49,6 +49,13 @@ export type Operations = {
   seating_capacity: Field<number>;
   tables_present: Field<boolean>;
   table_service: Field<boolean>;
+  /**
+   * Most recent public health inspection score, where a jurisdiction publishes
+   * one. Not a carrier application question — a proxy for operational
+   * discipline that underwriters and loss control do look at.
+   */
+  health_inspection_score: Field<number>;
+  health_inspection_history: Field<HealthInspection[]>;
 };
 
 export type Revenue = {

@@ -6,7 +6,12 @@
  * the guardrails (identifying User-Agent, per-host politeness) impossible to
  * forget in a new enricher.
  */
-import type { FetchRequest, Fetched, Fetcher, Logger } from '../core/enricher.js';
+import { createWriteStream } from 'node:fs';
+import { mkdir, stat } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import type { FetchRequest, Fetched, FetchedFile, Fetcher, Logger } from '../core/enricher.js';
 import { withSpan } from '../obs/tracing.js';
 import { cacheKey, DiskCache, type CacheEntry } from './store.js';
 
@@ -28,6 +33,8 @@ const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 export type FetcherOptions = {
   cache: DiskCache;
+  /** Root of the cache tree; bulk files live alongside the JSON entries. */
+  cacheDir: string;
   source: string;
   userAgent: string;
   now: () => Date;
@@ -92,6 +99,56 @@ export class CachedFetcher implements Fetcher {
     const entry = await this.fetchWithRetry(req, method, ref);
     await this.opts.cache.write(this.opts.source, entry);
     return { body: entry.body, status: entry.status, ref, retrieved_at: entry.retrieved_at, from_cache: false, url: entry.url };
+  }
+
+  /** Bulk archives: cached to disk by content-addressed name, never parsed here. */
+  async getFile(req: FetchRequest & { extension?: string }): Promise<FetchedFile> {
+    const method = req.method ?? 'GET';
+    const ref = req.cache_key ?? cacheKey({ method, url: req.url, body: req.body });
+    const ext = req.extension ?? 'bin';
+    const file = join(this.opts.cacheDir, this.opts.source, 'files', `${ref}.${ext}`);
+
+    const existing = await stat(file).catch(() => null);
+    if (existing) {
+      const ageSeconds = (this.opts.now().getTime() - existing.mtimeMs) / 1000;
+      if (req.ttl_seconds === undefined || ageSeconds < req.ttl_seconds) {
+        return {
+          path: file, ref, from_cache: true, url: req.url, bytes: existing.size,
+          retrieved_at: new Date(existing.mtimeMs).toISOString(),
+        };
+      }
+    }
+
+    if (this.opts.offline) {
+      if (existing) {
+        this.opts.log.warn('offline: serving stale cached file', { ref, url: req.url });
+        return {
+          path: file, ref, from_cache: true, url: req.url, bytes: existing.size,
+          retrieved_at: new Date(existing.mtimeMs).toISOString(),
+        };
+      }
+      throw new Error(`offline: no cached file for ${req.url}`);
+    }
+
+    const host = new URL(req.url).host;
+    await politeWait(host, this.signal);
+    this.opts.log.info('downloading bulk file', { url: req.url });
+
+    const res = await fetch(req.url, {
+      method,
+      headers: { 'user-agent': this.opts.userAgent, ...req.headers },
+      signal: this.signal,
+    });
+    if (!res.ok || !res.body) throw new Error(`bulk fetch failed ${res.status}: ${req.url}`);
+
+    await mkdir(dirname(file), { recursive: true });
+    await pipeline(Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]), createWriteStream(file));
+
+    const written = await stat(file);
+    return {
+      path: file, ref, from_cache: false, url: req.url, bytes: written.size,
+      retrieved_at: this.opts.now().toISOString(),
+    };
   }
 
   private isFresh(hit: CacheEntry, req: FetchRequest, now: Date): boolean {

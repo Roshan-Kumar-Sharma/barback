@@ -27,7 +27,9 @@
     "@temporalio/worker": "^1.23.0",
     "@temporalio/workflow": "^1.23.0",
     "commander": "^12.1.0",
+    "fflate": "^0.8.3",
     "p-limit": "^6.1.0",
+    "yaml": "^2.9.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

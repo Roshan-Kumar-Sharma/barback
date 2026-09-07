@@ -13,6 +13,8 @@
 export type SourceId =
   | 'tabc_license'   // Texas TABC License Information (data.texas.gov 7hf9-qc9f)
   | 'tabc_receipts'  // Texas Mixed Beverage Gross Receipts (data.texas.gov naix-2893)
+  | 'ca_abc'         // California ABC daily licence export
+  | 'health_austin'  // City of Austin food establishment inspection scores
   | 'osm'            // OpenStreetMap via Overpass + Nominatim
   | 'web'            // the venue's own website / menu
   | 'derived'        // computed from other fields by the reducer

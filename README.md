@@ -26,7 +26,10 @@ A surprising share of those questions are already answered in public government 
 
 ## What it produces
 
-Phase 1 (this release) produces the **`RiskProfile`**: ~100 underwriting fields, each carrying `value`, `source`, `confidence`, `as_of`, `method` and a link to the evidence. Never a bare value.
+1. **`RiskProfile`** — 103 underwriting fields, each carrying `value`, `source`, `confidence`, `as_of`, `method` and a link to the evidence. Never a bare value.
+2. **`MarketShortlist`** — carriers ranked with a verdict and the reasons, naming the rules that fired.
+3. **`CompletenessReport`** — the minimum ordered list of questions a human still needs to ask.
+4. **`SubmissionDraft`** — a populated field map and a drafted underwriter email.
 
 Example output, on a real Texas venue (name changed — see [Publishing](#publishing-and-real-venues)):
 
@@ -77,7 +80,36 @@ Everything above came from three free public sources, in seconds, with no creden
 
 Note also what the classifier did: it called an earlier test venue a **nightclub** without reading its name, website or a single review — reasoning from a full liquor permit, no Food and Beverage Certificate, a Late Hours Certificate, and 12% of receipts arriving as cover charges. That reasoning is attached to the field and can be argued with.
 
-Phases 2 and 3 add the completeness engine, the appetite engine, the submission drafter and the eval harness. See [Status](#status).
+### The question list is the product
+
+Ranking is the whole thing. This ordering is a claim about what actually moves a placement:
+
+1. **Submission requirements.** An incomplete submission is the commonest reason an underwriter ignores a broker. Nothing else matters if the file cannot be reviewed at all.
+2. **Unknowns on hard declines.** One answer can remove a carrier from the list entirely — worth knowing before spending days of calendar time.
+3. Then referral unknowns, then conflicts, then questions that unblock a derived field, then merely weak values. Cheap questions break ties.
+
+```
+Still to ask — 69 question(s), about 24 minutes
+
+   1. Can you provide loss runs for the last five years?
+      Losses (5 years) · ~180s
+      → Amwins Access will not review the submission without it: Five years of
+        currently valued loss runs are required with every submission.
+
+   2. What liquor liability limits are required?
+      Liquor limits · ~25s
+      → Amwins Access will not review the submission without it: A liquor
+        liability application is required where liquor liability is requested.
+
+   3. What share of sales is alcohol?
+      Alcohol % of sales · ~20s
+      → Example Specialty declines on this. Unknown, so eligibility cannot be
+        confirmed: Alcohol above 85% of sales exceeds the concentration limit.
+```
+
+That third one is the pattern worth noticing. Barback already knows this venue's alcohol sales to the dollar, from state tax filings. It is asking for the one number that completes the ratio — and it says which carrier's decline turns on it.
+
+**An unknown is never a pass.** If a carrier hard-declines venues with adult entertainment and nobody knows whether this venue has it, the verdict is "needs review", never "eligible". Treating silence as compliance is how a submission gets declined after a week of calendar time. In practice that turns appetite matching into a question generator, which is what a broker actually wants: not "yes", but "yes, once you confirm these three things".
 
 ## Quickstart
 
@@ -166,6 +198,8 @@ All public, all free, all official APIs or open data. Full detail and attributio
 | **TX Mixed Beverage Gross Receipts** | Monthly liquor/wine/beer/**cover charge** receipts per permit, tax responsibility dates | Free, no key |
 | **OpenStreetMap** (Overpass + Nominatim) | Observed opening hours, outdoor seating, live music, age policy — and the venue's **website URL** | Free, no key |
 | **The venue's own website** | Cooking equipment, events, hookah, bottle service, 21+, rooftop | Free (LLM optional) |
+| **California ABC** daily export | Licence type, status, issue date — type 48 states minors may not enter | Free, no key |
+| **City of Austin** food inspections | Inspection scores and trend | Free, no key |
 
 ### The find worth calling out
 
@@ -179,11 +213,13 @@ Cover charge income is the sleeper. A venue taking money at the door is behaving
 
 The point of this project is being right about what it doesn't know.
 
-- **Texas only, so far.** California lands in Phase 2. Two states done properly beats fifty done shallowly.
-- **Liquor violations are not available.** This is the field with the highest underwriting value, and the research this was built from expected Texas to publish it. **It does not.** There is no TABC enforcement dataset on the Texas Open Data Portal — I searched the catalogue. TABC's Public Inquiry System does expose licences with administrative violations, but it's an interactive application, and `tabc.texas.gov/robots.txt` disallows `/search/`. So under this project's own guardrails the field stays `null` with a stated reason. Phase 2 spikes whether a stable, in-ToS endpoint exists, or whether an Open Records Request can seed a dated static dataset.
+- **Two states, and they are not equal.** Texas yields ~22 fields per venue; California yields ~13. Texas publishes monthly alcohol tax filings and California publishes nothing comparable, so revenue, cover-charge income and ownership tenure are simply unavailable there. Two states done properly beats fifty done shallowly, but "properly" still means different things in each.
+- **Liquor violations are not available.** This is the field with the highest underwriting value, and the research this was built from expected Texas to publish it. **It does not.** There is no TABC enforcement dataset on the Texas Open Data Portal — I searched the catalogue. TABC's Public Inquiry System does expose licences with administrative violations, but it's an interactive application, and `tabc.texas.gov/robots.txt` disallows `/search/`. So under this project's own guardrails the field stays `null` with a stated reason. The realistic routes are an Open Records Request seeding a dated static dataset, or a broker supplying it. It stays `null` until one of those happens.
 - **`years_in_operation` is a ceiling, not a fact.** It comes from the licence *lineage*, which survives ownership changes. The tax responsibility date gives a better number and is used where available — but a taxpayer entity can change without the business really changing hands.
 - **`alcohol_pct` can't be completed from public data.** The numerator is a tax record; food sales are published nowhere. Rather than guess, the field reports the numerator it holds and names the missing input.
-- **Loss runs, X-dates, current carrier, required limits and fire-suppression compliance are structurally human.** No public source will ever fill them. The completeness engine's job (Phase 2) is to name them clearly rather than let them look merely "missing".
+- **Loss runs, X-dates, current carrier, required limits and fire-suppression compliance are structurally human.** No public source will ever fill them. The completeness engine computes this from what the configured sources declare they can produce, rather than from a hardcoded list that would rot — and reports them as "no public source can provide this" rather than letting them look merely missing. On a typical Texas venue that is 58 of the 81 unfilled fields.
+- **The appetite seed set is one real carrier and three illustrative ones.** This is the honest state of the world, not a shortcut. Public carrier documents publish classes, limits and submission requirements; they do not publish eligibility rules, which live in gated broker portals. The one real file encodes exactly what its public program page states and no hard declines, because none are public. The demonstration files live in `carriers/illustrative/`, are excluded unless you pass `--include-illustrative`, are labelled in every output, and are refused by the loader if they forget to declare themselves. **Do not place business on them.**
+- **Health inspection data is thinner than intended.** Austin publishes inspection scores but no violation text, so the grease and hood citations that would bear directly on the fire questions are not available. What is left is a score trend, which is a real signal about operational discipline but a weaker one than the source was chosen for. Chicago and NYC publish violation text but are outside both implemented states.
 - **The `02:00` alcohol cutoff is the *permitted* time, not observed behaviour.** A Late Hours Certificate says what a venue *may* do. Observed closing hours are a separate field, and [precedence deliberately lets observation win](src/core/reduce/precedence.ts).
 - **Website extraction is not deterministic across cold runs.** Even at temperature 0, two cold runs on the same venue returned different subsets of fields. The cache makes any *given* run reproducible, but coverage from this source varies. Quantifying that is a Phase 3 eval job, and until then treat the web enricher's contribution as indicative.
 - **No eval numbers yet.** Coverage figures in this README come from single runs, not a golden set. The eval harness, the hand-labelled golden set, calibration and silent-error rate land in Phase 3. Until then, treat every accuracy claim here as unmeasured.
@@ -239,14 +275,14 @@ The golden set commits real venues with real record-derived values, because eval
 
 - [x] **Phase 1 — the spine, complete.** Schema + provenance types · resolver · TABC licence and receipts enrichers · OSM enricher · venue-website enricher (LLM) · precedence reducer · derivations · orchestration port with **both** local and Temporal runners against one conformance suite · content-addressed cache (HTTP *and* model calls) · OpenTelemetry + cost accounting · CLI
 
-- [ ] **Phase 2 — the judgment.** Completeness engine · appetite engine + cited carrier files · ranked shortlist · submission drafter · California ABC · health inspections
+- [x] **Phase 2 — the judgment.** Appetite engine + cited carrier files · ranked shortlist with reasons · completeness engine + ordered question list · submission drafter · California ABC · Austin health inspections
 - [ ] **Phase 3 — the proof.** Hand-labelled golden set · eval harness (coverage, precision, calibration, silent-error rate) · CI regression gate · review UI with correction capture
 - [ ] **Phase 4 — compliance.** Diligent-effort affidavits · per-state surplus-lines tax
 
 ## Development
 
 ```bash
-pnpm check          # typecheck + layering + all 114 tests
+pnpm check          # typecheck + layering + all 175 tests
 pnpm test:fast      # skips the Temporal suite (which starts a real server, ~16s)
 pnpm lint:layers    # enforces the core-is-source-agnostic rule
 ```

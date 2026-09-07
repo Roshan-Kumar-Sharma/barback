@@ -114,3 +114,63 @@ The highest-signal free source for cooking equipment, events, hookah, bottle ser
 | **Carrier appetite guides** | Almost all sit behind broker portals. Phase 2 ships a BYO appetite format plus a small seed set built only from publicly available documents, every rule citing its source |
 | **ACORD forms** | Copyrighted. Fields are modelled generically as the union of what carriers ask; documents are cited by URL, never vendored |
 | **Review-derived risk signals** | Inferring "this bar has fights" from reviews and publishing it under a named real business is a reputational and legal hazard. Not built, and off by design |
+
+---
+
+## California
+
+### ABC daily licence export
+
+<https://www.abc.ca.gov/licensing/licensing-reports/> · Public record, California ABC · **No key required**
+
+A different source SHAPE from everything else here: not an API but a ~7MB zip containing a ~27MB CSV of all ~129,000 California licences, republished daily. Barback downloads it through the fetcher's bulk-file path (so caching, rate limiting and the User-Agent still apply in one place) and indexes it in memory once per process.
+
+The export's own "Updated ..." banner line supplies `as_of`, so the record date is the publisher's, not our download time.
+
+| Column | Underwriting use |
+|---|---|
+| `License Type` | Class and much else. See below |
+| `Type Status`, `Lic or App` | Whether the licence is issued and active |
+| `Type Orig Iss Date` | Years in operation — a ceiling, as in Texas |
+| `Primary Name`, `DBA Name` | Named insured and trading name. `Primary Name` may be a natural person |
+| `Prem Addr 1/2`, `Prem City`, `Prem Zip`, `Prem County` | Location |
+| `Expir Date` | **Licence** expiry, not the policy X-date. Emitted at low confidence with that stated |
+
+**The licence type does unusual work in California.** Where Texas encodes food-primary operation as a separate certificate (FB), California encodes it in the licence type itself. Meanings are taken from [ABC's published list](https://www.abc.ca.gov/licensing/license-types/):
+
+| Type | Meaning | What it tells an underwriter |
+|---|---|---|
+| 41 / 47 | On-Sale Beer & Wine / General — **Eating Place** | Licence requires a bona fide eating place: food-primary |
+| 42 / 48 / 61 | On-Sale — **Public Premises** | ABC's own text: *"Minors are not allowed to enter and remain"*. A 21+ bar, from a record |
+| 75 | Brewpub-Restaurant | Brewpub class |
+| 90 | On-Sale General — **Music Venue** | Licensed as a music entertainment facility: live performance is a licence fact |
+| 20 / 21 | Off-Sale | Out of class |
+
+**What California does not have:** any equivalent of the Texas mixed-beverage tax filings. There is no public revenue figure, no cover-charge line and no tax-responsibility date, so alcohol sales, ownership tenure and the operating-status corroboration that Texas gets for free are all unavailable. Coverage is materially thinner as a result, and the completeness engine reports the difference rather than hiding it.
+
+---
+
+## Health inspections
+
+### City of Austin — Food Establishment Inspection Scores
+
+<https://datahub.austintexas.gov/d/ecmv-9xxi> · Public record, City of Austin open data · **No key required**
+
+A proxy for operational discipline. Not a question on any carrier application, and presented as such.
+
+**What it does not give, and why that matters.** Health data is usually worth having for the violation TEXT — grease accumulation and hood citations bear directly on the fire questions carriers ask. Austin publishes only a numeric score with no violation detail, so that signal is absent. What remains is a score trend, which is real but weaker than the source was chosen for. Chicago (`4ijn-s7e5`) and NYC (`43nn-pn8j`) publish violation text and are both live, but neither is in an implemented state.
+
+**Matching** carries the same misattribution risk as OpenStreetMap and is handled the same way: the street address must agree AND the name must match. A strip mall's tenants share an address, and a bad inspection score attached to the wrong venue would be a confidently-sourced lie. Street suffixes are canonicalised rather than stripped — deleting them would collapse "100 Main St" and "100 Main Ave" onto one key.
+
+---
+
+## Carrier appetite
+
+Appetite files live in `carriers/`, one YAML per carrier program, every rule carrying a `source` and an `as_of`.
+
+**Public carrier documents publish classes, limits and submission requirements. They do not publish eligibility rules.** Real appetite lives in gated broker portals and in underwriters' heads, and it changes without notice. So the seed set is deliberately small and honest:
+
+- `carriers/amwins_access_bar_restaurant.yaml` — real, built from a public program page. Encodes classes, limits and submission requirements, and **no hard declines, because none are public**. Its `basis` field says exactly that.
+- `carriers/illustrative/` — demonstration files exercising the full rule vocabulary. Excluded unless `--include-illustrative` is passed, labelled in every output that shows them, and rejected by the loader if a file in that directory forgets to declare `illustrative: true`.
+
+Every file must declare a `basis` describing what it was actually built from. A marketing page is not an appetite guide, and the schema will not let you pretend otherwise.

@@ -103,7 +103,7 @@ export function makeRuntime(config: Config, signal: AbortSignal): Runtime {
     now,
     fetcherFor(source) {
       return new CachedFetcher(
-        { cache, source, userAgent: config.userAgent, now, log, offline: config.offline },
+        { cache, cacheDir: config.cacheDir, source, userAgent: config.userAgent, now, log, offline: config.offline },
         signal,
       );
     },

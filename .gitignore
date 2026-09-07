@@ -3,6 +3,12 @@ dist/
 .env
 *.tsbuildinfo
 data/runs/
-data/cache/**/*.json
+
+# Cached responses are reproducible downloads, not source. Ignore the whole
+# tree by default: a previous rule listed only *.json and let a 7MB bulk
+# archive through.
+data/cache/**
 !data/cache/.gitkeep
+# Committed fixtures for offline, free CI runs are the one exception.
+!data/cache/fixtures/
 !data/cache/fixtures/**

@@ -127,7 +127,7 @@ export function coverage(profile: RiskProfile): Coverage {
   };
 }
 
-export function renderRun(run: EnrichmentRun & { kindLabel?: string }, cov: Coverage): string {
+export function renderRun(run: EnrichmentRun & { kindLabel?: string }, cov?: Coverage): string {
   const lines: string[] = ['\nSources'];
   for (const s of run.steps) {
     const mark = s.status === 'ok' ? '✓' : s.status === 'skipped' ? '–' : '✗';
@@ -139,11 +139,19 @@ export function renderRun(run: EnrichmentRun & { kindLabel?: string }, cov: Cove
         : (s.error ?? 'failed');
     lines.push(`  ${mark} ${s.source.padEnd(16)} ${detail}`);
   }
+  // Coverage numbers are only printed when the completeness report is absent.
+  // Showing both produced two slightly different answers to the same question —
+  // they count conflicts differently — which is worse than showing neither.
+  if (cov) {
+    lines.push(
+      '',
+      `Coverage      ${cov.populated}/${cov.total} fields populated without a human`,
+      `Est. time     ${(cov.seconds_answered / 60).toFixed(0)} of ${(cov.seconds_total / 60).toFixed(0)} minutes of intake questions answered`,
+      `Still to ask  ${cov.remaining_questions} questions`,
+    );
+  }
   lines.push(
     '',
-    `Coverage      ${cov.populated}/${cov.total} fields populated without a human`,
-    `Est. time     ${(cov.seconds_answered / 60).toFixed(0)} of ${(cov.seconds_total / 60).toFixed(0)} minutes of intake questions answered`,
-    `Still to ask  ${cov.remaining_questions} questions`,
     `Run           ${(run.duration_ms / 1000).toFixed(1)}s · $${run.cost_usd.toFixed(4)}` +
       (run.tokens ? ` · ${run.tokens.toLocaleString('en-US')} tokens` : '') +
       ` · ${run.kindLabel ?? ''}${run.run_id}`,

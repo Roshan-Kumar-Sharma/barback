@@ -1,0 +1,64 @@
+# ILLUSTRATIVE — NOT A REAL CARRIER.
+#
+# The mirror of the BOP file: a programme that WANTS late-night and nightclub
+# risks. Included so the shortlist shows that a feature which declines a risk in
+# one market can be neutral or welcome in another — which is the whole reason
+# market selection is a skill worth automating.
+carrier: latenight_program
+program: nightlife_es
+label: Late Night Hospitality Program (ILLUSTRATIVE)
+states: [TX]
+classes: [bar, tavern, lounge, nightclub]
+
+hard_declines:
+  - field: loss_history.liquor_violations
+    exists: true
+    because: Any recorded liquor violation is declined without remediation evidence.
+  - field: entertainment.pyrotechnics
+    equals: true
+    because: Pyrotechnics are excluded.
+
+review_required:
+  - field: entertainment.adult_entertainment
+    equals: true
+    because: Adult entertainment refers to a senior underwriter.
+  - field: liquor_profile.underage_patrons_permitted
+    equals: true
+    because: Admitting under-21 patrons to a late-night venue refers.
+  - field: revenue.cover_charge_sales
+    gt: 250000
+    because: Substantial door income indicates event-driven crowds and refers.
+  - field: operations.years_under_current_owner
+    lt: 2
+    because: Under two years with the current owner refers as a new venture.
+
+credits:
+  - field: security_controls.bouncers_employed
+    equals: true
+    because: Employed door staff is a material credit on late-night risks.
+  - field: security_controls.id_scanner_all_patrons
+    equals: true
+    because: An ID scanner on all patrons earns a credit.
+  - field: security_controls.security_cameras
+    equals: true
+    because: Recording cameras support assault and battery defence.
+  - field: security_controls.voluntary_server_training
+    equals: true
+    because: Voluntary server training earns a liquor credit.
+
+requires_for_submission:
+  - field: loss_history.losses
+    because: Five years of loss runs, with assault and battery detail.
+  - field: coverage_requested.assault_battery_sublimit
+    because: A requested A&B sublimit must be stated for nightlife risks.
+  - field: security_controls.bouncers_employed
+    because: Door staffing must be described.
+
+limits:
+  liquor_liability: ["500K/1M", "1M/1M"]
+  assault_battery: sublimit to 500K
+
+source: https://github.com/barback/barback/blob/main/carriers/illustrative/latenight_hospitality_program.yaml
+as_of: '2026-09-07'
+basis: ILLUSTRATIVE — demonstrates the rule format. Not a real carrier appetite.
+illustrative: true

@@ -1,0 +1,63 @@
+# Amwins Access — Bars & Restaurants binding authority.
+#
+# BASIS, READ THIS FIRST: everything below comes from a public program page.
+# That page publishes eligible CLASSES, available LIMITS and SUBMISSION
+# REQUIREMENTS. It does not publish underwriting eligibility rules, so this file
+# contains no hard declines — because none are public, not because none exist.
+#
+# This is the normal situation. Real appetite lives in gated broker portals and
+# in underwriters' heads. See the README on why appetite here is BYO.
+carrier: amwins_access
+program: bar_restaurant_binding
+label: Amwins Access — Bars & Restaurants (binding authority)
+
+# The program page does not state a state footprint. Restricted to the states
+# Barback actually implements rather than claiming a national appetite that the
+# source does not support.
+states: [TX, CA]
+
+# Verbatim from the "Classes" list on the program page, mapped onto Barback's
+# operating classes. Notably includes nightclubs and adult entertainment, which
+# many markets decline outright — that is a real and useful appetite signal.
+classes: [restaurant, bar, tavern, lounge, nightclub, brewpub, other]
+
+hard_declines: []
+
+review_required:
+  - field: entertainment.adult_entertainment
+    equals: true
+    because: >-
+      Adult entertainment is written by this program, but the page lists it as a
+      distinct class rather than part of the standard bar/restaurant appetite,
+      so expect it to be underwritten separately.
+
+credits: []
+
+# From the "Submission Requirements" section of the program page. These are what
+# decides whether an underwriter looks at the file at all, which is why the
+# completeness engine ranks them above everything else.
+requires_for_submission:
+  - field: loss_history.losses
+    because: Five years of currently valued loss runs are required with every submission.
+  - field: coverage_requested.liquor_liability_limits
+    because: A liquor liability application is required where liquor liability is requested.
+  - field: coverage_requested.general_liability_limits
+    because: Completed industry-standard applications are required.
+
+limits:
+  general_liability: ["1M/2M", "2M/4M"]
+  excess: In-house authority to $10M
+  property_tiv: Max TIV $5M with wind included
+  assault_battery: Coverage can include assault and battery
+  minimum_premium: "$500"
+
+source: https://www.amwins.com/products/bars-taverns
+as_of: '2026-09-07'
+basis: >-
+  Public program page (classes, coverages, limits and submission requirements
+  only). No published underwriting eligibility guide; no hard declines are
+  encoded because none are public.
+illustrative: false
+notes: >-
+  Amwins is a wholesale broker with binding authority, not a carrier. Placing
+  through a wholesaler costs the retail agency an override on the commission.

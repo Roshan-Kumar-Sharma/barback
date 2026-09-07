@@ -66,6 +66,8 @@ const TABLE: Record<ProfileGroup, Record<string, Row>> = {
     seating_capacity: ['Seating capacity', 'What is the seating or occupancy capacity?', 20],
     tables_present: ['Tables', 'Are there tables for patrons?', 10],
     table_service: ['Table service', 'Is there table service?', 10],
+    health_inspection_score: ['Health inspection score', 'What was your most recent health inspection score?', 20],
+    health_inspection_history: ['Health inspection history', 'Have there been any failed or repeat health inspections?', 45],
   },
   revenue: {
     food_sales: ['Food sales', 'What were annual food sales?', 30, { human_only: true, format: 'usd' }],

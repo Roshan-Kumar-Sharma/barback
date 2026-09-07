@@ -51,6 +51,7 @@ export function createActivities(deps: ActivityDeps) {
         fetch: new CachedFetcher(
           {
             cache,
+            cacheDir: deps.cacheDir,
             source: enricher.id,
             userAgent: deps.userAgent,
             now: () => new Date(),
