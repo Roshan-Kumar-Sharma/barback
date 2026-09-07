@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AUTO_RESOLVE_SCORE } from '../src/resolver/tx.js';
-import { anchorToken, dice, nameScore, normalizeName, specificity } from '../src/resolver/similarity.js';
+import { anchorToken, dice, nameScore, normalizeName, specificity } from '../src/core/text/similarity.js';
 
 describe('name normalisation', () => {
   it('drops entity-suffix noise', () => {

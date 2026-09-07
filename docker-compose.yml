@@ -1,0 +1,43 @@
+# Temporal server for the durable orchestrator.
+#
+# Only needed for `barback quote --durable`. The default in-process
+# orchestrator requires none of this, which is deliberate: a repo that cannot
+# run without a cluster is a repo nobody runs, and an eval suite that needs one
+# is an eval suite CI will not keep green.
+#
+#   docker compose up -d
+#   pnpm barback worker            # in one terminal
+#   pnpm barback quote --durable --name "..." --state TX
+#
+# Temporal UI: http://localhost:8233
+services:
+  temporal:
+    image: temporalio/auto-setup:1.25.2
+    container_name: barback-temporal
+    ports: ['7233:7233']
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgres
+    depends_on: [postgres]
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: barback-temporal-db
+    environment:
+      - POSTGRES_USER=temporal
+      - POSTGRES_PASSWORD=temporal
+    volumes: ['temporal-data:/var/lib/postgresql/data']
+
+  temporal-ui:
+    image: temporalio/ui:2.31.2
+    container_name: barback-temporal-ui
+    ports: ['8233:8080']
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+    depends_on: [temporal]
+
+volumes:
+  temporal-data:

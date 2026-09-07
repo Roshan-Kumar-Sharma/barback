@@ -31,42 +31,51 @@ Phase 1 (this release) produces the **`RiskProfile`**: ~100 underwriting fields,
 Example output, on a real Texas venue (name changed — see [Publishing](#publishing-and-real-venues)):
 
 ```
-Anywhere Social
-422 E 6th St, Austin, TX 78701
-licence MB 2000XXXXX
+Anywhere Cantina
+606 TRINITY ST, Austin, TX 78701
+licence MB 1001XXXXX
 
 Identity
-    Trade name                     Anywhere Social              government record · 98%
+    Trade name                     ANYWHERE CANTINA             government record · 98%
+    Named insured                  606 - II L.L.C.              government record · 95%
     Licence type                   MB                           government record · 99%
     Licence status                 Active                       government record · 99%
+    Permit number                  MB1XXXXX                     government record · 98%
     Class code                     722410                       derived · 70%
 
 Operations
-    Operating class                nightclub                    derived · 80%
-    Year started here              2023                         government record · 85%
-    Years under current owner      3                            derived from government record · 80%
+    Operating class                tavern                       derived · 60%
+    Year started here              1993                         government record · 85%
+    Years in operation             39                           derived from government record · 60%
+    Years under current owner      32                           derived from government record · 80%
+    Latest closing time            23:00                        official API · 70%
     Late night operation           yes                          derived · 75%
     Currently operating            yes                          derived from government record · 85%
 
 Revenue
-    On-premise alcohol sales       $5,211,768                   government record · 95%
-    Cover charge income            $689,501                     government record · 95%
+    On-premise alcohol sales       $896,581                     government record · 95%
+    Cover charge income            $0                           government record · 95%
     Alcohol receipts history       36 record(s)                 government record · 95%
 
 Liquor profile
     Alcohol service cutoff         02:00                        derived from government record · 70%
     Late hours permit              yes                          government record · 97%
-    Food & beverage certificate    no                           government record · 97%
+    Food & beverage certificate    yes                          government record · 97%
 
-Coverage      20/101 fields populated without a human
+Property
+    Outdoor seating                yes                          official API · 65%
+
+Coverage      22/101 fields populated without a human
 Est. time     7 of 33 minutes of intake questions answered
-Still to ask  81 questions
-Run           2207ms · $0.0000
+Still to ask  79 questions
+Run           2.4s · $0.0000
 ```
 
-Every number above came from two government datasets, in about two seconds, for nothing.
+Everything above came from three free public sources, in seconds, with no credentials.
 
-Note what the classifier did: it called this a **nightclub** without reading the venue's name, website or a single review. It reasoned from records — a full liquor permit, no Food and Beverage Certificate, a Late Hours Certificate, and 12% of receipts arriving as cover charges. That reasoning is attached to the field and can be argued with.
+**Look at the three time fields, because they are the whole idea.** The venue is *permitted* to serve until 02:00 (it holds a Late Hours Certificate — a government record). It is *observed* to close at 23:00 (OpenStreetMap). And it counts as late-night because the authority to trade late is what a carrier is actually underwriting, whether or not the venue uses it. Those are three different questions, and a carrier application asks them separately. Collapsing them into one "closing time" field would lose the distinction that matters.
+
+Note also what the classifier did: it called an earlier test venue a **nightclub** without reading its name, website or a single review — reasoning from a full liquor permit, no Food and Beverage Certificate, a Late Hours Certificate, and 12% of receipts arriving as cover charges. That reasoning is attached to the field and can be argued with.
 
 Phases 2 and 3 add the completeness engine, the appetite engine, the submission drafter and the eval harness. See [Status](#status).
 
@@ -133,9 +142,19 @@ name + state
 
 ### The workflow choice
 
-Enrichment is many slow, flaky, rate-limited calls, which is a durable-execution problem. **Temporal** is the right tool, and it lands in slice 6 — but a repo that can't run without a cluster is a repo nobody runs, and an eval suite that needs one is an eval suite CI won't keep green.
+Enrichment is many slow, flaky, rate-limited calls, which is a durable-execution problem. **Temporal** is the right tool — but a repo that can't run without a cluster is a repo nobody runs, and an eval suite that needs one is an eval suite CI won't keep green.
 
-So durable execution sits behind [a port](src/pipeline/port.ts). `LocalOrchestrator` runs in-process and is the default; `TemporalOrchestrator` runs the same activities under a real event history. **Both must pass [the identical conformance suite](test/orchestrator-conformance.ts)** — failure isolation, wave scheduling on declared requirements, bounded concurrency, idempotency. A fallback that quietly behaved differently would make the local path a toy and the abstraction a lie.
+So durable execution sits behind [a port](src/pipeline/port.ts). `LocalOrchestrator` runs in-process and is the default; `TemporalOrchestrator` runs the same activities under a real event history, with per-activity retry, failure isolation and replay across worker restarts.
+
+**Both pass [the identical conformance suite](test/orchestrator-conformance.ts)** — failure isolation, wave scheduling on declared requirements, bounded concurrency, idempotency, cost accounting. That suite runs against a real Temporal server (via its test environment, so no Docker in CI), and it is what makes the port an honest boundary rather than a convenient fiction. It has already earned its keep: it caught that Temporal wraps activity errors in a generic `ActivityFailure`, so the durable path was reporting `"Activity task failed"` where the local one reported the actual cause. That divergence would never have surfaced against live sources.
+
+```bash
+docker compose up -d                 # Temporal + UI on :8233
+pnpm barback worker                  # in one terminal
+pnpm barback quote --durable --name "..." --state TX
+```
+
+The workflow itself is deliberately dull: it takes enricher *specs* rather than instances, so it stays deterministic and free of Node APIs, and every side effect lives in an activity. Activities are safe to retry aggressively because enrichers are pure given their fetcher and the fetcher is content-addressed — a retry replays from cache instead of re-billing an API or re-hammering a public portal.
 
 ## Data sources
 
@@ -145,8 +164,8 @@ All public, all free, all official APIs or open data. Full detail and attributio
 |---|---|---|
 | **TABC License Information** | Licence type & status, **Late Hours Certificate**, **Food & Beverage Certificate**, issue dates, licensee | Free, no key |
 | **TX Mixed Beverage Gross Receipts** | Monthly liquor/wine/beer/**cover charge** receipts per permit, tax responsibility dates | Free, no key |
-| **OpenStreetMap** (Overpass + Nominatim) | Geocoding, venue website URL, sparse attributes | Free, no key |
-| **The venue's own website** | Cooking equipment, events, hookah, bottle service, 21+ | Free |
+| **OpenStreetMap** (Overpass + Nominatim) | Observed opening hours, outdoor seating, live music, age policy — and the venue's **website URL** | Free, no key |
+| **The venue's own website** | Cooking equipment, events, hookah, bottle service, 21+, rooftop | Free (LLM optional) |
 
 ### The find worth calling out
 
@@ -166,8 +185,9 @@ The point of this project is being right about what it doesn't know.
 - **`alcohol_pct` can't be completed from public data.** The numerator is a tax record; food sales are published nowhere. Rather than guess, the field reports the numerator it holds and names the missing input.
 - **Loss runs, X-dates, current carrier, required limits and fire-suppression compliance are structurally human.** No public source will ever fill them. The completeness engine's job (Phase 2) is to name them clearly rather than let them look merely "missing".
 - **The `02:00` alcohol cutoff is the *permitted* time, not observed behaviour.** A Late Hours Certificate says what a venue *may* do. Observed closing hours are a separate field, and [precedence deliberately lets observation win](src/core/reduce/precedence.ts).
+- **Website extraction is not deterministic across cold runs.** Even at temperature 0, two cold runs on the same venue returned different subsets of fields. The cache makes any *given* run reproducible, but coverage from this source varies. Quantifying that is a Phase 3 eval job, and until then treat the web enricher's contribution as indicative.
 - **No eval numbers yet.** Coverage figures in this README come from single runs, not a golden set. The eval harness, the hand-labelled golden set, calibration and silent-error rate land in Phase 3. Until then, treat every accuracy claim here as unmeasured.
-- **OpenStreetMap coverage is thin.** Of 60 central-Austin venues, 11 had opening hours and 3 had outdoor seating. OSM's real job here is geocoding and finding the venue's website.
+- **OpenStreetMap coverage is thin, and the enricher often returns nothing.** Of 60 central-Austin venues sampled, 11 had opening hours and 3 had outdoor seating. Three of the four venues tested during development were not mapped at all, and got zero OSM fields. That is the enricher working correctly — see below.
 
 ## Guardrails
 
@@ -177,14 +197,48 @@ The point of this project is being right about what it doesn't know.
 - **Businesses, not people.** Licensee records sometimes name individuals for sole proprietors. Those fields are flagged `sensitive` in the schema and are redacted from published output.
 - Review-derived risk signals about named real businesses are a reputational and legal hazard. That enricher is **not built and is off by design**; if it is ever added it will be opt-in and documented.
 
+### The one place a model is used
+
+The venue's own website is the only source a model touches, and the only place `method: 'inferred'` appears. Nothing in a liquor licence or a tax filing tells you whether there is a deep fryer, a DJ, hookah, bottle service or a rooftop — and those are exactly the questions carriers decline over.
+
+It is also the least authoritative source, because it is **marketing copy**: a venue describes itself favourably and omits what is inconvenient. Three things follow, and they are the whole design:
+
+1. **Silence is never a "no".** A menu that does not mention hookah is not evidence that there is no hookah. `false` is recorded only when the page states an absence ("no BYOB", "21+ only"). Turning an omission into `false` would put a confident wrong answer in front of an underwriter on precisely the questions that get a risk declined.
+2. **A value without a verbatim quote is discarded.** The model must return the sentence supporting each field, and that sentence is checked against the page text before the field is kept. A model that invents a rooftop bar must also invent a quote that isn't there — which is checkable, so it gets checked. On a live run this fired and dropped an `adult_entertainment` claim that had no quote behind it.
+3. **It can never outrank a record.** `inferred` is the weakest method, so precedence guarantees a government record or an official API wins wherever they overlap.
+
+The quote survives into the field's notes, so a broker reads *why*:
+
+```
+Entertainment
+    Live music                     yes         inferred from venue's own site · 60%
+      "live reggae, ska, latin and worldbeat music, as well as rock, hip hop, alternative"
+
+Security controls
+    21+ venue                      yes         inferred from venue's own site · 60%
+      "*ALL FLAMINGO CANTINA EVENTS ARE 21+ *"
+```
+
+Model calls go through the same content-addressed cache as every HTTP fetch, so a repeated run replays byte-for-byte instead of being re-sampled and re-billed — 8.5s cold, 4ms warm. That is what makes an eval run reproducible rather than a fresh roll of the dice each time.
+
+It runs on any OpenAI-compatible endpoint and defaults to a free model, so it costs nothing. With no `LLM_API_KEY` set it simply contributes no fields.
+
+### Why the OSM enricher usually returns nothing
+
+Geocoding a licence address lands you on a building, and a building is not a venue. The address of one venue tested during development has **31 named OpenStreetMap features within 80 metres, 14 of them bars.** Attaching any of their opening hours to the licensed venue would produce a field that is plausible, precisely sourced, linked to a real OSM node — and wrong. That is the worst failure this system can produce, because nothing downstream would flag it.
+
+So tags are only ever attributed to a feature whose **name** matches the licensed trade name, and the name has to qualify on its own — a "this is a bar" signal corroborates that we found a venue, never *which* venue. When nothing matches, the enricher emits the geocode (an address is safe) and no attributes at all.
+
+The result is that it frequently contributes zero fields. That is the design holding, not the design failing. [Tested against the real block.](test/osm.test.ts)
+
 ### Publishing and real venues
 
 The golden set commits real venues with real record-derived values, because evals nobody can reproduce aren't evals. Published material — this README, screenshots, the demo — uses a pseudonymised venue. Personal names are redacted everywhere.
 
 ## Status
 
-- [x] **Phase 1 — the spine.** Schema + provenance types · resolver · TABC licence and receipts enrichers · precedence reducer · derivations · orchestration port + local runner · content-addressed cache · CLI
-- [ ] Phase 1 remaining: OSM enricher · venue-website enricher · Temporal orchestrator · OpenTelemetry + cost accounting
+- [x] **Phase 1 — the spine, complete.** Schema + provenance types · resolver · TABC licence and receipts enrichers · OSM enricher · venue-website enricher (LLM) · precedence reducer · derivations · orchestration port with **both** local and Temporal runners against one conformance suite · content-addressed cache (HTTP *and* model calls) · OpenTelemetry + cost accounting · CLI
+
 - [ ] **Phase 2 — the judgment.** Completeness engine · appetite engine + cited carrier files · ranked shortlist · submission drafter · California ABC · health inspections
 - [ ] **Phase 3 — the proof.** Hand-labelled golden set · eval harness (coverage, precision, calibration, silent-error rate) · CI regression gate · review UI with correction capture
 - [ ] **Phase 4 — compliance.** Diligent-effort affidavits · per-state surplus-lines tax
@@ -192,10 +246,12 @@ The golden set commits real venues with real record-derived values, because eval
 ## Development
 
 ```bash
-pnpm test           # 44 tests
-pnpm typecheck
+pnpm check          # typecheck + layering + all 114 tests
+pnpm test:fast      # skips the Temporal suite (which starts a real server, ~16s)
 pnpm lint:layers    # enforces the core-is-source-agnostic rule
 ```
+
+`pnpm test` includes the Temporal conformance suite, which downloads and runs Temporal's local dev server on first use. No Docker required.
 
 Adding a source: [docs/ADDING-A-SOURCE.md](docs/ADDING-A-SOURCE.md). Adding a state: [docs/ADDING-A-STATE.md](docs/ADDING-A-STATE.md).
 

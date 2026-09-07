@@ -18,12 +18,21 @@ import pLimit from 'p-limit';
 import type { Enricher } from '../core/enricher.js';
 import type { FieldCandidate } from '../core/field.js';
 import type { Venue } from '../core/venue.js';
+import { withSpan } from '../obs/tracing.js';
 import { readyEnrichers, type EnrichmentRun, type Orchestrator, type OrchestratorContext, type StepResult } from './port.js';
 
 export class LocalOrchestrator implements Orchestrator {
   readonly kind = 'local' as const;
 
   async run(venue: Venue, enrichers: Enricher[], ctx: OrchestratorContext): Promise<EnrichmentRun> {
+    return withSpan(
+      'enrichment',
+      { 'barback.orchestrator': this.kind, 'barback.venue_id': venue.id, 'barback.enrichers': enrichers.length },
+      () => this.runInner(venue, enrichers, ctx),
+    );
+  }
+
+  private async runInner(venue: Venue, enrichers: Enricher[], ctx: OrchestratorContext): Promise<EnrichmentRun> {
     const started = ctx.now();
     const limit = pLimit(ctx.concurrency ?? 4);
 
@@ -101,6 +110,7 @@ export class LocalOrchestrator implements Orchestrator {
       finished_at: finished.toISOString(),
       duration_ms: finished.getTime() - started.getTime(),
       cost_usd: steps.reduce((n, s) => n + s.cost_usd, 0),
+      tokens: steps.reduce((n, s) => n + (s.tokens ?? 0), 0),
     };
   }
 
@@ -111,12 +121,16 @@ export class LocalOrchestrator implements Orchestrator {
   ): Promise<{ enricher: Enricher; step: StepResult; candidates: FieldCandidate[]; patch?: Partial<Venue> }> {
     const t0 = Date.now();
     try {
-      const result = await enricher.run(venue, {
+      const result = await withSpan(
+        `enrich ${enricher.id}`,
+        { 'barback.source': enricher.id, 'barback.venue_id': venue.id },
+        () => enricher.run(venue, {
         fetch: ctx.fetcherFor(enricher.id),
         now: ctx.now,
         log: ctx.log,
         signal: ctx.signal,
-      });
+        }),
+      );
       return {
         enricher,
         candidates: result.fields,

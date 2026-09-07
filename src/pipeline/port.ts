@@ -42,6 +42,8 @@ export type EnrichmentRun = {
   finished_at: string;
   duration_ms: number;
   cost_usd: number;
+  /** LLM tokens across the run. Zero when no model was involved. */
+  tokens: number;
 };
 
 export type OrchestratorContext = {

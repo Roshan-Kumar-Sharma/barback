@@ -71,15 +71,37 @@ This is a downgrade from what the project was scoped to expect, and saying so is
 
 Used for geocoding a licence address, locating the venue's OSM feature, and — most valuably — discovering the venue's **own website**, which is the input to the highest-signal free source.
 
+| Tag | Field |
+|---|---|
+| `opening_hours` | `operations.latest_closing_time` — **observed** hours, which is a different question from the permitted cutoff, and [precedence lets observation win](../src/core/reduce/precedence.ts) |
+| `outdoor_seating` | `property.outdoor_seating` |
+| `live_music` | `entertainment.live_music` (presence only; OSM records no frequency, and carriers ask for it) |
+| `min_age` | `security_controls.minimum_age_21`, `liquor_profile.underage_patrons_permitted` |
+| `website` / `contact:website` | Not a profile field — it unblocks the venue-website enricher |
+
+**Attribution requires a name match.** A geocoded address lands on a building; one tested address has 31 named features within 80m, 14 of them bars. Tags are attached only to a feature whose name matches the licensed trade name, and the name must qualify on its own — an amenity type corroborates that we found a venue, never which one. Where nothing matches, the geocode is emitted and no attributes are.
+
+**`as_of` comes from the element's last-edit timestamp** (`out meta`), or `check_date`/`survey:date` where a surveyor recorded one. OSM tags can be years stale and an underwriter needs to know when someone last looked. The same response carries the editor's username, which is never read or stored.
+
+**`opening_hours` is read conservatively.** [The parser](../src/enrichers/osm/opening-hours.ts) returns `null` for anything it does not fully recognise, including a string where only *some* rules parsed — the unreadable rule could be the late one, and understating a closing time is the dangerous direction for underwriting.
+
 **Coverage is thin and stated honestly.** Of 60 bars and restaurants sampled in central Austin: 57 had a name, 19 a website, 11 opening hours, 3 outdoor seating, 2 live music, 2 a minimum age. Useful tags exist (`opening_hours`, `outdoor_seating`, `live_music`, `min_age`, `smoking`, `microbrewery`) but cannot be relied on.
 
 **Usage policy.** Nominatim permits at most 1 request/second and requires an identifying User-Agent. Barback sends one and rate-limits to a 1.1-second minimum interval per host, below the documented ceiling. Set `BARBACK_USER_AGENT` to a real contact address if you run this at any volume.
 
 ### The venue's own website
 
-Fetched politely, respecting `robots.txt`. The highest-signal free source for cooking equipment, events, hookah, bottle service and age policy — none of which appear in any government record.
+The highest-signal free source for cooking equipment, events, hookah, bottle service, rooftops and age policy — none of which appear in any government record. Also the least authoritative, because it is marketing copy.
 
-Everything extracted here is marked `method: 'inferred'` and, by [precedence](../src/core/reduce/precedence.ts), can never outrank a record.
+**Politeness.** Unlike the government portals, these are small businesses' own servers. `robots.txt` is obeyed (and an unreadable or failed `robots.txt` is treated as a *disallow* — guessing permissively is the one mistake here with somebody else on the receiving end). An identifying User-Agent is sent, at most four pages are read (homepage plus up to three ranked by underwriting relevance — menu, events, private hire), and everything is cached so a repeat run costs the venue nothing.
+
+**Stale website tags.** OSM `website` values go stale; one venue's tag pointed at a deep link that now 404s. The enricher falls back to the site origin, which is derived from the tag rather than guessed.
+
+**Extraction rules.** Everything is `method: 'inferred'` and can never outrank a record. Values are nullable throughout, and the prompt insists that an omission is not a `false`. **Every value must carry a verbatim quote from the page, verified against the fetched text before the field is kept** — this is the structural defence against hallucination, and it fires in practice.
+
+**Model calls are cached** through the same content-addressed store as HTTP fetches (keyed on model, prompt and parameters; the API key travels in a header and is never part of the key or the stored entry). A repeated run replays instead of re-sampling: ~8.5s cold, ~4ms warm.
+
+**Model choice.** Any OpenAI-compatible endpoint; the default is a free OpenRouter model. Reasoning models work — the JSON extractor handles a narrated preamble by taking the richest valid object rather than the first brace — but are far slower for this task (~50s vs ~3s in testing).
 
 ---
 

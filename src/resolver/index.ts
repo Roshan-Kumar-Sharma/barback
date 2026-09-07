@@ -3,7 +3,7 @@ import type { VenueResolution } from '../core/venue.js';
 import { resolveTexas, type ResolveOptions } from './tx.js';
 
 export * from './tx.js';
-export * from './similarity.js';
+export * from '../core/text/similarity.js';
 
 export async function resolve(fetcher: Fetcher, opts: ResolveOptions): Promise<VenueResolution> {
   switch (opts.state) {

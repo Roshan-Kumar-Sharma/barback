@@ -15,7 +15,7 @@ import type { Fetcher } from '../core/enricher.js';
 import type { StateCode, Venue, VenueCandidate, VenueResolution } from '../core/venue.js';
 import { DATASETS, idString, isoDate, query, soqlLiteral, type SocrataRow } from '../enrichers/tabc/client.js';
 import { isInClass, typeInfo } from '../enrichers/tabc/codes.js';
-import { anchorToken, nameScore, normalizeName } from './similarity.js';
+import { anchorToken, nameScore, normalizeName } from '../core/text/similarity.js';
 
 export type ResolveOptions = {
   name: string;

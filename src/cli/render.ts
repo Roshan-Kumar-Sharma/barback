@@ -127,14 +127,16 @@ export function coverage(profile: RiskProfile): Coverage {
   };
 }
 
-export function renderRun(run: EnrichmentRun, cov: Coverage): string {
+export function renderRun(run: EnrichmentRun & { kindLabel?: string }, cov: Coverage): string {
   const lines: string[] = ['\nSources'];
   for (const s of run.steps) {
     const mark = s.status === 'ok' ? '✓' : s.status === 'skipped' ? '–' : '✗';
     const detail =
-      s.status === 'ok' ? `${s.fields_emitted} field(s) in ${s.duration_ms}ms`
-      : s.status === 'skipped' ? (s.reason ?? 'skipped')
-      : (s.error ?? 'failed');
+      s.status === 'ok'
+        ? `${s.fields_emitted} field(s) in ${s.duration_ms}ms` +
+          (s.tokens ? ` · ${s.tokens.toLocaleString('en-US')} tokens` : '')
+        : s.status === 'skipped' ? (s.reason ?? 'skipped')
+        : (s.error ?? 'failed');
     lines.push(`  ${mark} ${s.source.padEnd(16)} ${detail}`);
   }
   lines.push(
@@ -142,7 +144,9 @@ export function renderRun(run: EnrichmentRun, cov: Coverage): string {
     `Coverage      ${cov.populated}/${cov.total} fields populated without a human`,
     `Est. time     ${(cov.seconds_answered / 60).toFixed(0)} of ${(cov.seconds_total / 60).toFixed(0)} minutes of intake questions answered`,
     `Still to ask  ${cov.remaining_questions} questions`,
-    `Run           ${run.duration_ms}ms · $${run.cost_usd.toFixed(4)} · ${run.run_id}`,
+    `Run           ${(run.duration_ms / 1000).toFixed(1)}s · $${run.cost_usd.toFixed(4)}` +
+      (run.tokens ? ` · ${run.tokens.toLocaleString('en-US')} tokens` : '') +
+      ` · ${run.kindLabel ?? ''}${run.run_id}`,
   );
   return lines.join('\n');
 }

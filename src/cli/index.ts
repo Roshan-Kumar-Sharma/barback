@@ -2,6 +2,7 @@
 import { Command } from 'commander';
 import { registerQuote } from './commands/quote.js';
 import { registerResolve } from './commands/resolve.js';
+import { registerWorker } from './commands/worker.js';
 
 const program = new Command();
 
@@ -15,6 +16,7 @@ program
 
 registerResolve(program);
 registerQuote(program);
+registerWorker(program);
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   process.stderr.write(`\nbarback: ${err instanceof Error ? err.message : String(err)}\n`);

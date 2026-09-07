@@ -7,6 +7,7 @@
  * forget in a new enricher.
  */
 import type { FetchRequest, Fetched, Fetcher, Logger } from '../core/enricher.js';
+import { withSpan } from '../obs/tracing.js';
 import { cacheKey, DiskCache, type CacheEntry } from './store.js';
 
 /**
@@ -56,6 +57,19 @@ export class CachedFetcher implements Fetcher {
   constructor(private readonly opts: FetcherOptions, private readonly signal: AbortSignal) {}
 
   async get(req: FetchRequest): Promise<Fetched> {
+    return withSpan(
+      'fetch',
+      { 'barback.source': this.opts.source, 'http.request.method': req.method ?? 'GET', 'url.full': req.url },
+      async (span) => {
+        const out = await this.fetchInner(req);
+        span.setAttribute('barback.cache_hit', out.from_cache);
+        span.setAttribute('http.response.status_code', out.status);
+        return out;
+      },
+    );
+  }
+
+  private async fetchInner(req: FetchRequest): Promise<Fetched> {
     const method = req.method ?? 'GET';
     const ref = req.cache_key ?? cacheKey({ method, url: req.url, body: req.body });
     const now = this.opts.now();

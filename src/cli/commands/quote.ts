@@ -5,8 +5,10 @@ import { reduce, unknownPaths } from '../../core/reduce/index.js';
 import type { StateCode } from '../../core/venue.js';
 import { derivationsFor, enrichersFor } from '../../enrichers/index.js';
 import { LocalOrchestrator } from '../../pipeline/index.js';
+import type { Orchestrator } from '../../pipeline/port.js';
 import { resolve } from '../../resolver/index.js';
 import { coverage, DISCLAIMER, renderProfile, renderRun } from '../render.js';
+import { initTracing, shutdownTracing } from '../../obs/tracing.js';
 import { loadConfig, makeRuntime } from '../runtime.js';
 
 export function registerQuote(program: Command): void {
@@ -19,14 +21,18 @@ export function registerQuote(program: Command): void {
     .option('--json', 'emit the full profile as JSON')
     .option('--all', 'show empty fields too')
     .option('--save <path>', 'write the run to a JSON file')
+    .option('--durable', 'run enrichment through Temporal instead of in-process')
+    .option('--temporal-address <address>', 'Temporal server address', 'localhost:7233')
     .option('-v, --verbose', 'log cache hits and requests')
     .action(async (opts: {
       name: string; state: string; city?: string;
       json?: boolean; all?: boolean; save?: string; verbose?: boolean;
+      durable?: boolean; temporalAddress?: string;
     }) => {
       const controller = new AbortController();
       const config = loadConfig({ verbose: opts.verbose === true });
       const rt = makeRuntime(config, controller.signal);
+      await initTracing(rt.log);
       const state = opts.state.toUpperCase() as StateCode;
 
       const resolution = await resolve(rt.fetcherFor('resolver'), {
@@ -58,8 +64,15 @@ export function registerQuote(program: Command): void {
         return;
       }
 
-      const enrichers = enrichersFor(state, { socrataAppToken: config.socrataAppToken });
-      const run = await new LocalOrchestrator().run(resolution.venue, enrichers, {
+      const enrichers = enrichersFor(state, {
+        socrataAppToken: config.socrataAppToken,
+        llm: rt.llm.available ? rt.llm : undefined,
+      });
+      const orchestrator: Orchestrator = opts.durable === true
+        ? await makeTemporalOrchestrator(opts.temporalAddress ?? 'localhost:7233', state)
+        : new LocalOrchestrator();
+
+      const run = await orchestrator.run(resolution.venue, enrichers, {
         fetcherFor: (s) => rt.fetcherFor(s),
         now: rt.now,
         log: rt.log,
@@ -88,13 +101,39 @@ export function registerQuote(program: Command): void {
         return;
       }
 
+      if (opts.verbose === true) rt.log.info(`orchestrator: ${orchestrator.kind}`);
+
       const v = resolution.venue;
       process.stdout.write(
         `\n${v.trade_name}\n${v.address.line1}, ${v.address.city}, ${v.address.state} ${v.address.zip}\n` +
         `licence ${v.license_type} ${v.license_id}\n`,
       );
       process.stdout.write(`${renderProfile(profile, { showEmpty: opts.all === true })}\n`);
-      process.stdout.write(`${renderRun(run, cov)}\n`);
+      process.stdout.write(`${renderRun({ ...run, kindLabel: `${orchestrator.kind} · ` }, cov)}\n`);
       process.stdout.write(DISCLAIMER);
+      await shutdownTracing();
     });
+}
+
+/**
+ * Connect to Temporal lazily.
+ *
+ * Imported dynamically so the default path never loads the Temporal SDK — the
+ * in-process runner must stay usable on a fresh clone with no cluster, and
+ * paying that import cost on every CLI invocation would undercut the point.
+ */
+async function makeTemporalOrchestrator(address: string, state: StateCode): Promise<Orchestrator> {
+  const [{ Connection, WorkflowClient }, { TemporalOrchestrator }] = await Promise.all([
+    import('@temporalio/client'),
+    import('../../pipeline/temporal/orchestrator.js'),
+  ]);
+  try {
+    const connection = await Connection.connect({ address });
+    return new TemporalOrchestrator({ client: new WorkflowClient({ connection }), state });
+  } catch (err) {
+    throw new Error(
+      `Could not reach Temporal at ${address}. Start it with \`docker compose up -d\` and run ` +
+      `\`pnpm barback worker\` in another terminal, or drop --durable to run in-process. (${String(err)})`,
+    );
+  }
 }

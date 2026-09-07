@@ -4,14 +4,21 @@ import type { StateCode } from '../core/venue.js';
 import { TabcLicenseEnricher } from './tabc/license.js';
 import { TabcReceiptsEnricher } from './tabc/receipts.js';
 
+import { LlmClient } from '../llm/client.js';
+import { OsmEnricher } from './osm/index.js';
+import { WebEnricher } from './web/index.js';
 import { TX_DERIVATIONS } from './tabc/derivations.js';
 
 export { TabcLicenseEnricher } from './tabc/license.js';
 export { TabcReceiptsEnricher } from './tabc/receipts.js';
+export { OsmEnricher } from './osm/index.js';
+export { WebEnricher } from './web/index.js';
 export * from './tabc/codes.js';
 
 export type EnricherOptions = {
   socrataAppToken?: string | undefined;
+  /** Omit to run without site reading; the web enricher then contributes nothing. */
+  llm?: LlmClient | undefined;
 };
 
 /**
@@ -28,6 +35,8 @@ export function enrichersFor(state: StateCode, opts: EnricherOptions = {}): Enri
       return [
         new TabcLicenseEnricher(opts.socrataAppToken),
         new TabcReceiptsEnricher(opts.socrataAppToken),
+        new OsmEnricher(),
+        ...(opts.llm ? [new WebEnricher(opts.llm)] : []),
       ];
     case 'CA':
       return [];
