@@ -7,7 +7,7 @@
 Give it a **venue name and a state**. It returns a structured underwriting risk profile assembled from public records, with provenance on every single field.
 
 ```bash
-barback quote --name "Anywhere Social" --state TX
+barback quote --name "Anywhere Cantina" --state TX
 ```
 
 > ### ⚠️ Not insurance advice
@@ -15,6 +15,17 @@ barback quote --name "Anywhere Social" --state TX
 > It produces a **draft for a licensed producer to verify**. Public records go stale;
 > every field carries an `as_of` date for exactly that reason. Placing coverage on
 > unverified data is how you get an E&O claim.
+
+<p align="center">
+  <img src="docs/demo.svg" width="862"
+       alt="A real barback run: name and state in; a provenance-tracked profile, a ranked market shortlist, an ordered question list and a drafted submission out.">
+</p>
+
+<sub><b>A real run, replayed.</b> Every line is verbatim CLI output, in the order the CLI
+printed it; only the venue name and its licence numbers are pseudonymised, as
+<a href="#publishing-and-real-venues">Publishing</a> requires. Long lines are wrapped to fit
+the frame. The pacing is the only synthetic part — regenerate the frame with
+<a href="docs/demo.py"><code>docs/demo.py</code></a>.</sub>
 
 ---
 
@@ -34,15 +45,22 @@ A surprising share of those questions are already answered in public government 
 Example output, on a real Texas venue (name changed — see [Publishing](#publishing-and-real-venues)):
 
 ```
+$ barback quote --name "Anywhere Cantina" --state TX --city Austin --redact
+
+! web: discarded values with no verifiable quote
+  dropped: property.outdoor_seating (quote not found in page text)
+
 Anywhere Cantina
 606 TRINITY ST, Austin, TX 78701
 licence MB 1001XXXXX
 
 Identity
     Trade name                     ANYWHERE CANTINA             government record · 98%
-    Named insured                  606 - II L.L.C.              government record · 95%
+    Named insured                  [redacted — personal data]   government record · 95%
+    Location address               606 TRINITY ST, Austin, TX,  government record · 97%
     Licence type                   MB                           government record · 99%
     Licence status                 Active                       government record · 99%
+    Licence number                 1001XXXXX                    government record · 99%
     Permit number                  MB1XXXXX                     government record · 98%
     Class code                     722410                       derived · 70%
 
@@ -54,6 +72,8 @@ Operations
     Latest closing time            23:00                        official API · 70%
     Late night operation           yes                          derived · 75%
     Currently operating            yes                          derived from government record · 85%
+    Health inspection score        82                           government record · 90%
+    Health inspection history      4 record(s)                  government record · 90%
 
 Revenue
     On-premise alcohol sales       $896,581                     government record · 95%
@@ -66,19 +86,101 @@ Liquor profile
     Food & beverage certificate    yes                          government record · 97%
 
 Property
+    Elevated deck or rooftop       yes                          inferred from venue's own site · 60%
     Outdoor seating                yes                          official API · 65%
 
-Coverage      22/101 fields populated without a human
-Est. time     7 of 33 minutes of intake questions answered
-Still to ask  79 questions
-Run           2.4s · $0.0000
+Sources
+  ✓ tabc_license     12 field(s)      ✓ health_austin     2 field(s)
+  ✓ tabc_receipts     7 field(s)      ✓ web               1 field(s)
+  ✓ osm               2 field(s)
+
+Intake       25/103 fields filled without a human
+             ~9 of ~35 minutes of questions answered
+             0 conflict(s) · 0 low-confidence · 58 that no public source can ever fill
+Run          0.0s · $0.0000 · 7,445 tokens · local
 ```
 
-Everything above came from three free public sources, in seconds, with no credentials.
+Everything above came from five free public sources, with no credentials. That run is **warm** from the
+content-addressed cache, which is why it reports `0.0s` — a cold run is dominated by the website fetch
+and the single model call. The first line is the point as much as anything below it: the model proposed
+`outdoor_seating` without a quote from the page to back it, so the value was thrown away, and OpenStreetMap
+supplied it from a record instead.
 
 **Look at the three time fields, because they are the whole idea.** The venue is *permitted* to serve until 02:00 (it holds a Late Hours Certificate — a government record). It is *observed* to close at 23:00 (OpenStreetMap). And it counts as late-night because the authority to trade late is what a carrier is actually underwriting, whether or not the venue uses it. Those are three different questions, and a carrier application asks them separately. Collapsing them into one "closing time" field would lose the distinction that matters.
 
 Note also what the classifier did: it called an earlier test venue a **nightclub** without reading its name, website or a single review — reasoning from a full liquor permit, no Food and Beverage Certificate, a Late Hours Certificate, and 12% of receipts arriving as cover charges. That reasoning is attached to the field and can be argued with.
+
+### The shortlist names the rule that fired
+
+Market selection is the other half of the bottleneck: a senior broker deciding, from memory, which of
+roughly a hundred carriers will want this risk. The same run continues:
+
+```
+Market shortlist
+
+  ⚠️  Needs review — Amwins Access — Bars & Restaurants (binding authority)
+     ✅ Class "tavern" is written by this program.
+     ? Unknown: whether entertainment.adult_entertainment is yes — Adult
+       entertainment is written by this program, but the page lists it as a
+       distinct class rather than part of the standard bar/restaurant appetite,
+       so expect it to be underwritten separately.
+     📋 Submission incomplete: 3 required item(s) still needed.
+     Blocked on 1 unknown field(s); see the question list.
+     Basis: Public program page (classes, coverages, limits and submission
+       requirements only). No published underwriting eligibility guide; no hard
+       declines are encoded because none are public.
+     Source: https://www.amwins.com/products/bars-taverns (as of 2026-09-07)
+
+  ⚠️  Needs review — Late Night Hospitality Program (ILLUSTRATIVE)
+     ✅ Class "tavern" is written by this program.
+     ? Unknown: whether entertainment.pyrotechnics is yes — Pyrotechnics are
+       excluded.
+     ? Unknown: whether entertainment.adult_entertainment is yes — Adult
+       entertainment refers to a senior underwriter.
+     ? Unknown: whether liquor_profile.underage_patrons_permitted is yes —
+       Admitting under-21 patrons to a late-night venue refers.
+     📋 Submission incomplete: 3 required item(s) still needed.
+     Blocked on 3 unknown field(s); see the question list.
+     Basis: ILLUSTRATIVE — demonstrates the rule format. Not a real appetite.
+
+  ⚠️  Needs review — Example Specialty E&S (ILLUSTRATIVE)
+     ✅ Class "tavern" is written by this program.
+     ⚠️ A rooftop or deck elevated 8ft or more refers for the fall exposure. (yes)
+     ? Unknown: whether revenue.alcohol_pct is over 0.85 — Alcohol above 85% of
+       sales exceeds the program's concentration limit.
+     ? Unknown: whether entertainment.mosh_pits is yes — Mosh pits are excluded.
+     ? Unknown: whether entertainment.hookah_or_oxygen_inhalation is yes —
+       Hookah or oxygen inhalation on premises requires referral.
+     ? Unknown: whether entertainment.dj_with_dancing is yes — A DJ with dancing
+       refers for the crowd-management exposure.
+     📋 Submission incomplete: 4 required item(s) still needed.
+     Blocked on 5 unknown field(s); see the question list.
+     Basis: ILLUSTRATIVE — demonstrates the rule format. Not a real appetite.
+
+  Not considered:
+     Mainstreet Mutual — Restaurant BOP (ILLUSTRATIVE) — Does not write class
+       "tavern" (writes restaurant).
+```
+
+Four things in there are deliberate.
+
+**Nothing is "eligible".** Every verdict is *needs review*, because every carrier has at least one
+unknown that bears on its own rules. A shortlist that said "eligible" here would be asserting facts
+about mosh pits and hookah that nobody has established.
+
+**The one ⚠️ that fired on a positive value came from the weakest source.** The rooftop refers under
+Example Specialty's fall-exposure rule — and that value is `inferred from venue's own site · 60%`,
+carried through from a quote on the venue's own page. It is shown as a referral to look at, not a
+fact to act on, and a broker can click straight back to the sentence that produced it.
+
+**"Not considered" is a first-class output.** Mainstreet Mutual writes restaurants, not taverns, so it
+is excluded *with the reason*, rather than quietly ranked last. A broker needs to know a market was
+ruled out and why, otherwise they re-check it by hand.
+
+**Every entry carries its basis and its date.** The one real carrier file says plainly that it encodes
+a public program page and no hard declines, because no eligibility guide is public. The other three
+are labelled `ILLUSTRATIVE` in the name, in the basis line, and again in a banner at the end of the
+run — see [the limitations](#honest-limitations).
 
 ### The question list is the product
 
@@ -89,27 +191,139 @@ Ranking is the whole thing. This ordering is a claim about what actually moves a
 3. Then referral unknowns, then conflicts, then questions that unblock a derived field, then merely weak values. Cheap questions break ties.
 
 ```
-Still to ask — 69 question(s), about 24 minutes
+Still to ask — 78 question(s), about 26 minutes
+  Ranked for: Amwins Access — Bars & Restaurants (binding authority), Late Night
+  Hospitality Program (ILLUSTRATIVE), Example Specialty E&S (ILLUSTRATIVE)
 
    1. Can you provide loss runs for the last five years?
       Losses (5 years) · ~180s
       → Amwins Access will not review the submission without it: Five years of
         currently valued loss runs are required with every submission.
+      → Late Night Hospitality Program will not review the submission without
+        it: Five years of loss runs, with assault and battery detail.
 
    2. What liquor liability limits are required?
       Liquor limits · ~25s
       → Amwins Access will not review the submission without it: A liquor
         liability application is required where liquor liability is requested.
+      → Example Specialty E&S will not review the submission without it:
+        Requested liquor limits must be stated.
 
    3. What share of sales is alcohol?
       Alcohol % of sales · ~20s
-      → Example Specialty declines on this. Unknown, so eligibility cannot be
-        confirmed: Alcohol above 85% of sales exceeds the concentration limit.
+      → Example Specialty E&S will not review the submission without it: The
+        revenue split is needed to rate liquor liability.
+      → Example Specialty E&S declines on this. Unknown, so eligibility cannot
+        be confirmed: Alcohol above 85% of sales exceeds the concentration limit.
+
+   4. Is there adult entertainment or exotic dancing, and how often?
+      Adult entertainment · ~20s
+      → Example Specialty E&S declines on this. Unknown, so eligibility cannot
+        be confirmed: Adult entertainment is outside this program's appetite.
+      → Amwins Access refers on this: Adult entertainment is written by this
+        program, but the page lists it as a distinct class, so expect it to be
+        underwritten separately.
+
+  …and 74 more. Use --questions <n> to see them.
 ```
 
 That third one is the pattern worth noticing. Barback already knows this venue's alcohol sales to the dollar, from state tax filings. It is asking for the one number that completes the ratio — and it says which carrier's decline turns on it.
 
 **An unknown is never a pass.** If a carrier hard-declines venues with adult entertainment and nobody knows whether this venue has it, the verdict is "needs review", never "eligible". Treating silence as compliance is how a submission gets declined after a week of calendar time. In practice that turns appetite matching into a question generator, which is what a broker actually wants: not "yes", but "yes, once you confirm these three things".
+
+### The draft is a draft
+
+`--draft` assembles the submission for the best-ranked market. It is the last thing Barback does, and
+the thing it is most careful about.
+
+```
+────────────────────────────────────────────────────────────────────────
+Draft submission — Amwins Access — Bars & Restaurants (binding authority)
+────────────────────────────────────────────────────────────────────────
+  ⚠️  This is a DRAFT. Nothing has been sent. A licensed producer must verify
+      every field before it goes to a carrier.
+  ⚠️  3 required submission item(s) are missing. Underwriters routinely ignore
+      incomplete submissions.
+
+  To:      [underwriter email — not populated; Barback never sends]
+  Subject: Submission — ANYWHERE CANTINA, Austin TX — tavern
+
+  Please consider the following tavern risk for Amwins Access — Bars &
+  Restaurants (binding authority).
+
+  ANYWHERE CANTINA
+  606 TRINITY ST, Austin, TX 78701
+
+  Identity
+    Trade name: ANYWHERE CANTINA
+    Named insured: [redacted — personal data]
+    Location address: 606 TRINITY ST, Austin, TX, 78701
+    Licence type: MB
+    Licence status: Active
+    Licence number: 1001XXXXX
+    Permit number: MB1XXXXX
+    Class code: 722410
+
+  Operations
+    Operating class: tavern
+    Year started here: 1993
+    Years in operation: 39
+    Years under current owner: 32
+    Latest closing time: 23:00
+    Late night operation: Yes
+    Currently operating: Yes
+    Health inspection score: 82
+    Health inspection history: 4 record(s) attached separately
+
+  Revenue
+    On-premise alcohol sales: $896,581
+    Cover charge income: $0
+    Alcohol receipts history: 36 record(s) attached separately
+
+  Liquor profile
+    Alcohol service cutoff: 02:00
+    Late hours permit: Yes
+    Food & beverage certificate: Yes
+
+  Property
+    Elevated deck or rooftop: Yes
+    Outdoor seating: Yes
+
+  Still being confirmed with the insured:
+    Losses (5 years)
+    Liquor limits
+    Alcohol % of sales
+    Adult entertainment
+    Bouncers employed
+    A&B sublimit
+    GL limits
+    NFPA 96 compliant
+    Mosh pits
+    Pyrotechnics
+    Hookah or oxygen
+    Underage patrons
+    …and 66 further items
+
+  Data provenance: figures above are drawn from state licence and tax records,
+  OpenStreetMap and the venue's own website. Every field carries a source and a
+  record date, available on request.
+
+  [Producer name] · [licence number] · [contact]
+
+  25 field(s) populated · 78 still outstanding
+```
+
+**The `To:` line is empty on purpose, and there is no code path that fills it.** Barback has no mail
+client, no SMTP configuration and no carrier contact list. The draft is text on a terminal; a licensed
+producer moves it.
+
+**The draft states its own gaps in the body.** "Still being confirmed with the insured" is not padding
+— sending an underwriter a submission that looks complete but silently omits loss runs is how a broker
+loses a market. Naming the gaps is what an experienced broker does by hand, and it is why the two
+banners at the top count the missing *required* items rather than just warning in general.
+
+**The producer block is left as placeholders.** Binding is legally gated to a licensed producer, so the
+signature is something a human fills in, never something the tool asserts.
 
 ## Quickstart
 
@@ -213,11 +427,11 @@ Cover charge income is the sleeper. A venue taking money at the door is behaving
 
 The point of this project is being right about what it doesn't know.
 
-- **Two states, and they are not equal.** Texas yields ~22 fields per venue; California yields ~13. Texas publishes monthly alcohol tax filings and California publishes nothing comparable, so revenue, cover-charge income and ownership tenure are simply unavailable there. Two states done properly beats fifty done shallowly, but "properly" still means different things in each.
+- **Two states, and they are not equal.** Texas yields ~22–25 fields per venue; California yields ~13. Texas publishes monthly alcohol tax filings and California publishes nothing comparable, so revenue, cover-charge income and ownership tenure are simply unavailable there. Two states done properly beats fifty done shallowly, but "properly" still means different things in each.
 - **Liquor violations are not available.** This is the field with the highest underwriting value, and the research this was built from expected Texas to publish it. **It does not.** There is no TABC enforcement dataset on the Texas Open Data Portal — I searched the catalogue. TABC's Public Inquiry System does expose licences with administrative violations, but it's an interactive application, and `tabc.texas.gov/robots.txt` disallows `/search/`. So under this project's own guardrails the field stays `null` with a stated reason. The realistic routes are an Open Records Request seeding a dated static dataset, or a broker supplying it. It stays `null` until one of those happens.
 - **`years_in_operation` is a ceiling, not a fact.** It comes from the licence *lineage*, which survives ownership changes. The tax responsibility date gives a better number and is used where available — but a taxpayer entity can change without the business really changing hands.
 - **`alcohol_pct` can't be completed from public data.** The numerator is a tax record; food sales are published nowhere. Rather than guess, the field reports the numerator it holds and names the missing input.
-- **Loss runs, X-dates, current carrier, required limits and fire-suppression compliance are structurally human.** No public source will ever fill them. The completeness engine computes this from what the configured sources declare they can produce, rather than from a hardcoded list that would rot — and reports them as "no public source can provide this" rather than letting them look merely missing. On a typical Texas venue that is 58 of the 81 unfilled fields.
+- **Loss runs, X-dates, current carrier, required limits and fire-suppression compliance are structurally human.** No public source will ever fill them. The completeness engine computes this from what the configured sources declare they can produce, rather than from a hardcoded list that would rot — and reports them as "no public source can provide this" rather than letting them look merely missing. On a typical Texas venue that is 58 of the 78 unfilled fields.
 - **The appetite seed set is one real carrier and three illustrative ones.** This is the honest state of the world, not a shortcut. Public carrier documents publish classes, limits and submission requirements; they do not publish eligibility rules, which live in gated broker portals. The one real file encodes exactly what its public program page states and no hard declines, because none are public. The demonstration files live in `carriers/illustrative/`, are excluded unless you pass `--include-illustrative`, are labelled in every output, and are refused by the loader if they forget to declare themselves. **Do not place business on them.**
 - **Health inspection data is thinner than intended.** Austin publishes inspection scores but no violation text, so the grease and hood citations that would bear directly on the fire questions are not available. What is left is a score trend, which is a real signal about operational discipline but a weaker one than the source was chosen for. Chicago and NYC publish violation text but are outside both implemented states.
 - **The `02:00` alcohol cutoff is the *permitted* time, not observed behaviour.** A Late Hours Certificate says what a venue *may* do. Observed closing hours are a separate field, and [precedence deliberately lets observation win](src/core/reduce/precedence.ts).
